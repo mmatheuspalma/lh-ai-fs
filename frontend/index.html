@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BS Detector</title>
+    <style>
+      /* Force a light surface so the dark UI text stays legible regardless of the
+         browser/OS color scheme (the app uses dark-on-light styling). */
+      :root { color-scheme: light; }
+      html, body { margin: 0; background: #ffffff; color: #24292f; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
