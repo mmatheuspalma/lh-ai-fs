@@ -27,7 +27,7 @@ python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env      # Add your OpenAI API key
-uvicorn main:app --reload
+uvicorn main:app --reload --port 8002
 ```
 
 The API runs at `http://localhost:8002`.
@@ -98,3 +98,73 @@ We are evaluating:
 5. How honest your reflection is
 
 Not lines of code.
+
+---
+
+## How it works (this implementation)
+
+`POST /analyze` runs a 5-agent pipeline over the documents in `backend/documents/`,
+passing typed Pydantic models (not raw text) between agents:
+
+1. **CitationExtractor** — pulls every citation and direct quote from the MSJ.
+2. **AuthorityVerifier** — judges whether each citation supports its proposition
+   (verdicts: `supports` / `overstates` / `misattributed` / `wrong_jurisdiction` /
+   `likely_fabricated` / `could_not_verify`).
+3. **QuoteChecker** — judges whether each direct quote is `accurate` / `altered` /
+   `overstated` / `unverifiable`.
+4. **CrossDocConsistency** — compares MSJ factual claims against the police report,
+   medical records, and witness statement (`corroborated` / `contradicted` /
+   `unverifiable`).
+5. **JudicialMemo** — synthesizes the top findings into a one-paragraph memo for a judge.
+
+Stage 2 (agents 2–4) runs concurrently. Every finding carries a confidence score with
+reasoning and a severity. Agent failures degrade gracefully — `/analyze` always returns
+a report with a `pipeline_status` block rather than erroring.
+
+Agent code: `backend/agents/`. Orchestration: `backend/pipeline.py`. Data contracts:
+`backend/schemas.py`.
+
+## Running the evals
+
+```bash
+cd backend
+source venv/bin/activate        # or your venv
+python run_evals.py
+```
+
+This runs the live pipeline once against the case file and scores it against a
+hand-labeled gold set of the planted flaws (`backend/evals/gold.py`), reporting:
+
+- **Recall** — known flaws caught
+- **Precision** — flags that are real, not false alarms (negative controls count against)
+- **Hallucination rate** — findings referencing things absent from the source, or
+  flagging known-true facts
+
+Matching is deterministic on structured keys — no LLM grades the LLM.
+
+**Observed across live runs (gpt-4o, temperature 0):**
+
+| Metric | Value |
+|---|---|
+| Recall | 75–87.5% (6–7 of 8 gold flaws) |
+| Precision | 100% |
+| Hallucination | 0% |
+
+Precision and hallucination are stable run-to-run. The recall variance is entirely in
+the two *fabricated* cases (Whitmore, Kellerman): the model alternates between
+`likely_fabricated` (a catch) and `could_not_verify` (honest uncertainty, not a catch)
+because it cannot prove an obscure case is invented without a legal database. Every
+real-case defect (Privette overstatement, Seabright misattribution, out-of-state
+cites) and every cross-document contradiction (incident date, PPE) was caught in every
+run. This abstention is by design — it protects precision at the cost of some recall.
+See [REFLECTION.md](REFLECTION.md).
+
+## Backend tests
+
+```bash
+cd backend && source venv/bin/activate && pytest -q
+```
+
+## Reflection
+
+Design decisions, tradeoffs, and honest limitations are in [REFLECTION.md](REFLECTION.md).
