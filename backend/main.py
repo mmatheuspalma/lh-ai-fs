@@ -1,6 +1,9 @@
 from fastapi import FastAPI
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
+
+from pipeline import run_pipeline
 
 app = FastAPI()
 
@@ -26,5 +29,6 @@ def load_documents() -> dict[str, str]:
 @app.post("/analyze")
 async def analyze():
     documents = load_documents()
-    # TODO: Build your multi-agent pipeline here
-    return {"report": None}
+    # run the (sync, LLM-bound) pipeline off the event loop
+    report = await run_in_threadpool(run_pipeline, documents)
+    return {"report": report.model_dump()}
