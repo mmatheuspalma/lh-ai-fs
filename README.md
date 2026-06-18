@@ -4,6 +4,11 @@ Legal briefs lie. Not always intentionally — but they do. They cite cases that
 
 Your task: build an AI pipeline that catches it.
 
+# Screenshots
+
+<img width="810" height="526" alt="image" src="https://github.com/user-attachments/assets/cee96497-0658-4aa7-90c4-5bbca7000cbc" />
+
+
 ## Setup
 
 ### Docker (recommended)
